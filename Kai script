@@ -27,7 +27,8 @@ local PlayerValues = {
    NoclipConnection = nil,
    Invisible = false,
    InvisibleConnection = nil,
-   OriginalTransparency = {}
+   OriginalTransparency = {},
+   OriginalProperties = {}
 }
 
 -- ========== 更改器分類 ==========
@@ -214,7 +215,7 @@ PluginTab:CreateButton({
    end
 })
 
--- 隱形開關
+-- 隱形開關 (完全隱形)
 PluginTab:CreateToggle({
    Name = "隱形",
    CurrentValue = false,
@@ -228,25 +229,39 @@ PluginTab:CreateToggle({
          local character = player.Character
          
          if character then
-            -- 保存原本的透明度
+            -- 隱藏所有部件和配件
             for _, part in pairs(character:GetDescendants()) do
                if part:IsA("BasePart") then
                   PlayerValues.OriginalTransparency[part] = part.Transparency
                   part.Transparency = 1
+                  part.CanCollide = false
+               elseif part:IsA("Humanoid") then
+                  part.HealthDisplayDistance = 0
+                  part.NameDisplayDistance = 0
                end
             end
             
-            -- 隱藏角色配件
-            local humanoid = character:FindFirstChild("Humanoid")
-            if humanoid then
-               humanoid.HealthDisplayDistance = 0
-               humanoid.NameDisplayDistance = 0
+            -- 隱藏裝備和其他配件
+            if character:FindFirstChild("Humanoid") then
+               for _, item in pairs(character:GetChildren()) do
+                  if item:IsA("BasePart") then
+                     PlayerValues.OriginalTransparency[item] = item.Transparency
+                     item.Transparency = 1
+                  end
+               end
+            end
+            
+            -- 禁用碰撞檢測（使其他玩家穿過你）
+            for _, part in pairs(character:GetDescendants()) do
+               if part:IsA("BasePart") then
+                  part.CanCollide = false
+               end
             end
          end
          
          Rayfield:Notify({
             Title = "隱形已開啟",
-            Content = "你已隱形",
+            Content = "你已完全隱形，其他玩家看不到你",
             Duration = 2,
             Image = 4483362458
          })
@@ -256,13 +271,20 @@ PluginTab:CreateToggle({
          local character = player.Character
          
          if character then
-            -- 恢復原本的透明度
+            -- 恢復所有部件的透明度
             for part, transparency in pairs(PlayerValues.OriginalTransparency) do
                if part and part.Parent then
                   part.Transparency = transparency
                end
             end
             PlayerValues.OriginalTransparency = {}
+            
+            -- 恢復碰撞檢測
+            for _, part in pairs(character:GetDescendants()) do
+               if part:IsA("BasePart") then
+                  part.CanCollide = true
+               end
+            end
             
             -- 恢復角色配件顯示
             local humanoid = character:FindFirstChild("Humanoid")

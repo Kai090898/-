@@ -23,7 +23,8 @@ local PlayerValues = {
    Gravity = 196.2,
    Noclip = false,
    ESP = false,
-   ESPBoxes = {}
+   ESPBoxes = {},
+   NoclipConnection = nil
 }
 
 -- ========== 更改器分類 ==========
@@ -115,7 +116,7 @@ ModifierTab:CreateInput({
    end
 })
 
--- 穿牆開關
+-- 穿牆開關 (改進版本)
 ModifierTab:CreateToggle({
    Name = "穿牆",
    CurrentValue = false,
@@ -127,21 +128,51 @@ ModifierTab:CreateToggle({
          local character = player.Character
          
          if character then
+            -- 禁用所有部件的碰撞
             for _, part in pairs(character:GetDescendants()) do
                if part:IsA("BasePart") then
                   part.CanCollide = false
                end
             end
+            
+            -- 創建持續穿牆的連接
+            if PlayerValues.NoclipConnection then
+               PlayerValues.NoclipConnection:Disconnect()
+            end
+            
+            PlayerValues.NoclipConnection = game:GetService("RunService").Heartbeat:Connect(function()
+               if not PlayerValues.Noclip then
+                  return
+               end
+               
+               local character = player.Character
+               if character then
+                  for _, part in pairs(character:GetDescendants()) do
+                     if part:IsA("BasePart") then
+                        part.CanCollide = false
+                     end
+                  end
+               end
+            end)
          end
+         
+         PlayerValues.Noclip = true
          
          Rayfield:Notify({
             Title = "穿牆已開啟",
-            Content = "你現在可以穿過牆壁",
+            Content = "你現在可以穿過所有牆壁",
             Duration = 2,
             Image = 4483362458
          })
       else
          -- 關閉穿牆
+         PlayerValues.Noclip = false
+         
+         if PlayerValues.NoclipConnection then
+            PlayerValues.NoclipConnection:Disconnect()
+            PlayerValues.NoclipConnection = nil
+         end
+         
          local player = game.Players.LocalPlayer
          local character = player.Character
          
@@ -180,7 +211,7 @@ PluginTab:CreateButton({
    end
 })
 
--- 透視玩家開關 (Box ESP)
+-- 透視玩家開關 (改進版本 - 外框 + 名稱標籤)
 PluginTab:CreateToggle({
    Name = "透視玩家",
    CurrentValue = false,
@@ -191,57 +222,24 @@ PluginTab:CreateToggle({
       if Value then
          -- 開啟透視
          local players = game:GetService("Players"):GetPlayers()
-         local camera = workspace.CurrentCamera
          
          for _, player in pairs(players) do
             if player ~= game.Players.LocalPlayer and player.Character then
-               local character = player.Character
-               local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
-               
-               if humanoidRootPart then
-                  -- 創建外框 (Box)
-                  local box = Instance.new("Part")
-                  box.Name = "ESPBox_" .. player.Name
-                  box.Shape = Enum.PartType.Block
-                  box.Material = Enum.Material.Neon
-                  box.Color = Color3.fromRGB(0, 255, 0)
-                  box.CanCollide = false
-                  box.CFrame = humanoidRootPart.CFrame
-                  box.Transparency = 0.7
-                  box.TopSurface = Enum.SurfaceType.Smooth
-                  box.BottomSurface = Enum.SurfaceType.Smooth
-                  box.Parent = workspace
-                  
-                  -- 縮放外框以適應角色大小
-                  box.Size = Vector3.new(3, 5, 3)
-                  
-                  -- 保存外框參考
-                  if not PlayerValues.ESPBoxes[player.Name] then
-                     PlayerValues.ESPBoxes[player.Name] = {}
-                  end
-                  PlayerValues.ESPBoxes[player.Name].box = box
-                  
-                  -- 持續更新外框位置
-                  local connection
-                  connection = game:GetService("RunService").RenderStepped:Connect(function()
-                     if not PlayerValues.ESP or not player.Parent or not character.Parent then
-                        if box and box.Parent then
-                           box:Destroy()
-                        end
-                        connection:Disconnect()
-                        PlayerValues.ESPBoxes[player.Name] = nil
-                        return
-                     end
-                     
-                     if humanoidRootPart and box then
-                        box.CFrame = humanoidRootPart.CFrame
-                     end
-                  end)
-                  
-                  PlayerValues.ESPBoxes[player.Name].connection = connection
-               end
+               CreateESP(player, PlayerValues)
             end
          end
+         
+         -- 監聽新玩家加入
+         local connection = game:GetService("Players").PlayerAdded:Connect(function(player)
+            if PlayerValues.ESP and player ~= game.Players.LocalPlayer then
+               wait(0.5) -- 等待角色加載
+               if player.Character then
+                  CreateESP(player, PlayerValues)
+               end
+            end
+         end)
+         
+         PlayerValues.ESPConnection = connection
          
          Rayfield:Notify({
             Title = "透視玩家已開啟",
@@ -251,9 +249,17 @@ PluginTab:CreateToggle({
          })
       else
          -- 關閉透視
+         if PlayerValues.ESPConnection then
+            PlayerValues.ESPConnection:Disconnect()
+            PlayerValues.ESPConnection = nil
+         end
+         
          for playerName, data in pairs(PlayerValues.ESPBoxes) do
             if data.box and data.box.Parent then
                data.box:Destroy()
+            end
+            if data.nameLabel and data.nameLabel.Parent then
+               data.nameLabel:Destroy()
             end
             if data.connection then
                data.connection:Disconnect()
@@ -270,6 +276,96 @@ PluginTab:CreateToggle({
       end
    end
 })
+
+-- 創建ESP函數
+function CreateESP(player, values)
+   if not player.Character then return end
+   
+   local character = player.Character
+   local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+   
+   if not humanoidRootPart then return end
+   
+   -- 創建外框 (Box)
+   local box = Instance.new("Part")
+   box.Name = "ESPBox_" .. player.Name
+   box.Shape = Enum.PartType.Block
+   box.Material = Enum.Material.Neon
+   box.Color = Color3.fromRGB(0, 255, 0)
+   box.CanCollide = false
+   box.CFrame = humanoidRootPart.CFrame
+   box.Transparency = 0.5
+   box.TopSurface = Enum.SurfaceType.Smooth
+   box.BottomSurface = Enum.SurfaceType.Smooth
+   box.Size = Vector3.new(3, 5, 3)
+   box.Parent = workspace
+   
+   -- 穿透牆壁設置
+   local boxSurface = Instance.new("SurfaceGui")
+   boxSurface.Parent = box
+   boxSurface.Face = Enum.NormalId.Front
+   
+   -- 創建玩家名稱標籤
+   local nameLabel = Instance.new("Part")
+   nameLabel.Name = "ESPLabel_" .. player.Name
+   nameLabel.Shape = Enum.PartType.Block
+   nameLabel.Material = Enum.Material.Neon
+   nameLabel.Color = Color3.fromRGB(0, 255, 0)
+   nameLabel.CanCollide = false
+   nameLabel.Transparency = 0.3
+   nameLabel.TopSurface = Enum.SurfaceType.Smooth
+   nameLabel.BottomSurface = Enum.SurfaceType.Smooth
+   nameLabel.Size = Vector3.new(0.1, 0.1, 0.1)
+   nameLabel.Parent = workspace
+   
+   -- 在名稱標籤上添加文本
+   local textLabel = Instance.new("TextLabel")
+   textLabel.Name = "NameText"
+   textLabel.BackgroundTransparency = 1
+   textLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+   textLabel.TextSize = 24
+   textLabel.Font = Enum.Font.GothamBold
+   textLabel.Text = player.Name
+   textLabel.TextScaled = true
+   textLabel.Parent = nameLabel
+   
+   local billboardGui = Instance.new("BillboardGui")
+   billboardGui.Size = UDim2.new(4, 0, 2, 0)
+   billboardGui.MaxDistance = math.huge
+   billboardGui.Parent = nameLabel
+   
+   textLabel.Parent = billboardGui
+   
+   -- 保存參考
+   if not values.ESPBoxes[player.Name] then
+      values.ESPBoxes[player.Name] = {}
+   end
+   values.ESPBoxes[player.Name].box = box
+   values.ESPBoxes[player.Name].nameLabel = nameLabel
+   
+   -- 持續更新位置
+   local connection
+   connection = game:GetService("RunService").RenderStepped:Connect(function()
+      if not values.ESP or not player.Parent or not character.Parent then
+         if box and box.Parent then
+            box:Destroy()
+         end
+         if nameLabel and nameLabel.Parent then
+            nameLabel:Destroy()
+         end
+         connection:Disconnect()
+         values.ESPBoxes[player.Name] = nil
+         return
+      end
+      
+      if humanoidRootPart and box then
+         box.CFrame = humanoidRootPart.CFrame
+         nameLabel.Position = humanoidRootPart.Position + Vector3.new(0, 3, 0)
+      end
+   end)
+   
+   values.ESPBoxes[player.Name].connection = connection
+end
 
 -- 重置按鈕
 ModifierTab:CreateButton({

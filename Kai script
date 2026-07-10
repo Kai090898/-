@@ -120,7 +120,7 @@ ModifierTab:CreateInput({
    end
 })
 
--- 穿牆開關 (改進版本)
+-- 穿牆開關 (默認關閉)
 ModifierTab:CreateToggle({
    Name = "穿牆",
    CurrentValue = false,
@@ -215,7 +215,7 @@ PluginTab:CreateButton({
    end
 })
 
--- 隱形開關 (完全隱形)
+-- 隱形開關 (默認關閉)
 PluginTab:CreateToggle({
    Name = "隱形",
    CurrentValue = false,
@@ -304,7 +304,7 @@ PluginTab:CreateToggle({
    end
 })
 
--- 透視玩家開關 (使用 Billboard GUI)
+-- 透視玩家開關
 PluginTab:CreateToggle({
    Name = "透視玩家",
    CurrentValue = false,

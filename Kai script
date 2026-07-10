@@ -19,7 +19,8 @@ local ModifierTab = Window:CreateTab("更改器", 0)
 local PlayerValues = {
    JumpPower = 50,
    WalkSpeed = 16,
-   Gravity = 196.2
+   Gravity = 196.2,
+   Noclip = false
 }
 
 -- 跳躍力輸入框
@@ -109,6 +110,56 @@ ModifierTab:CreateInput({
    end
 })
 
+-- 穿牆開關
+ModifierTab:CreateToggle({
+   Name = "穿牆",
+   CurrentValue = false,
+   Flag = "Noclip",
+   Callback = function(Value)
+      PlayerValues.Noclip = Value
+      
+      if Value then
+         -- 開啟穿牆
+         local player = game.Players.LocalPlayer
+         local character = player.Character
+         
+         if character then
+            for _, part in pairs(character:GetDescendants()) do
+               if part:IsA("BasePart") then
+                  part.CanCollide = false
+               end
+            end
+         end
+         
+         Rayfield:Notify({
+            Title = "穿牆已開啟",
+            Content = "你現在可以穿過牆壁",
+            Duration = 2,
+            Image = 4483362458
+         })
+      else
+         -- 關閉穿牆
+         local player = game.Players.LocalPlayer
+         local character = player.Character
+         
+         if character then
+            for _, part in pairs(character:GetDescendants()) do
+               if part:IsA("BasePart") then
+                  part.CanCollide = true
+               end
+            end
+         end
+         
+         Rayfield:Notify({
+            Title = "穿牆已關閉",
+            Content = "碰撞已恢復",
+            Duration = 2,
+            Image = 4483362458
+         })
+      end
+   end
+})
+
 -- 重置按鈕
 ModifierTab:CreateButton({
    Name = "重置所有數值",
@@ -116,6 +167,7 @@ ModifierTab:CreateButton({
       PlayerValues.JumpPower = 50
       PlayerValues.WalkSpeed = 16
       PlayerValues.Gravity = 196.2
+      PlayerValues.Noclip = false
       
       local humanoid = game.Players.LocalPlayer.Character:FindFirstChild("Humanoid")
       if humanoid then
@@ -123,6 +175,16 @@ ModifierTab:CreateButton({
          humanoid.WalkSpeed = 16
       end
       workspace.Gravity = 196.2
+      
+      -- 恢復碰撞
+      local character = game.Players.LocalPlayer.Character
+      if character then
+         for _, part in pairs(character:GetDescendants()) do
+            if part:IsA("BasePart") then
+               part.CanCollide = true
+            end
+         end
+      end
       
       Rayfield:Notify({
          Title = "已重置",

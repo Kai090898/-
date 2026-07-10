@@ -24,7 +24,10 @@ local PlayerValues = {
    Noclip = false,
    ESP = false,
    ESPBoxes = {},
-   NoclipConnection = nil
+   NoclipConnection = nil,
+   Invisible = false,
+   InvisibleConnection = nil,
+   OriginalTransparency = {}
 }
 
 -- ========== 更改器分類 ==========
@@ -211,7 +214,75 @@ PluginTab:CreateButton({
    end
 })
 
--- 透視玩家開關 (改進版本 - 外框 + 名稱標籤)
+-- 隱形開關
+PluginTab:CreateToggle({
+   Name = "隱形",
+   CurrentValue = false,
+   Flag = "Invisible",
+   Callback = function(Value)
+      PlayerValues.Invisible = Value
+      
+      if Value then
+         -- 開啟隱形
+         local player = game.Players.LocalPlayer
+         local character = player.Character
+         
+         if character then
+            -- 保存原本的透明度
+            for _, part in pairs(character:GetDescendants()) do
+               if part:IsA("BasePart") then
+                  PlayerValues.OriginalTransparency[part] = part.Transparency
+                  part.Transparency = 1
+               end
+            end
+            
+            -- 隱藏角色配件
+            local humanoid = character:FindFirstChild("Humanoid")
+            if humanoid then
+               humanoid.HealthDisplayDistance = 0
+               humanoid.NameDisplayDistance = 0
+            end
+         end
+         
+         Rayfield:Notify({
+            Title = "隱形已開啟",
+            Content = "你已隱形",
+            Duration = 2,
+            Image = 4483362458
+         })
+      else
+         -- 關閉隱形
+         local player = game.Players.LocalPlayer
+         local character = player.Character
+         
+         if character then
+            -- 恢復原本的透明度
+            for part, transparency in pairs(PlayerValues.OriginalTransparency) do
+               if part and part.Parent then
+                  part.Transparency = transparency
+               end
+            end
+            PlayerValues.OriginalTransparency = {}
+            
+            -- 恢復角色配件顯示
+            local humanoid = character:FindFirstChild("Humanoid")
+            if humanoid then
+               humanoid.HealthDisplayDistance = 100
+               humanoid.NameDisplayDistance = 100
+            end
+         end
+         
+         Rayfield:Notify({
+            Title = "隱形已關閉",
+            Content = "你已恢復可見",
+            Duration = 2,
+            Image = 4483362458
+         })
+      end
+   end
+})
+
+-- 透視玩家開關 (使用 Billboard GUI)
 PluginTab:CreateToggle({
    Name = "透視玩家",
    CurrentValue = false,
@@ -225,16 +296,16 @@ PluginTab:CreateToggle({
          
          for _, player in pairs(players) do
             if player ~= game.Players.LocalPlayer and player.Character then
-               CreateESP(player, PlayerValues)
+               CreateBillboardESP(player, PlayerValues)
             end
          end
          
          -- 監聽新玩家加入
          local connection = game:GetService("Players").PlayerAdded:Connect(function(player)
             if PlayerValues.ESP and player ~= game.Players.LocalPlayer then
-               wait(0.5) -- 等待角色加載
+               wait(0.5)
                if player.Character then
-                  CreateESP(player, PlayerValues)
+                  CreateBillboardESP(player, PlayerValues)
                end
             end
          end)
@@ -243,7 +314,7 @@ PluginTab:CreateToggle({
          
          Rayfield:Notify({
             Title = "透視玩家已開啟",
-            Content = "玩家位置外框已顯示",
+            Content = "玩家位置標籤已顯示",
             Duration = 2,
             Image = 4483362458
          })
@@ -255,11 +326,8 @@ PluginTab:CreateToggle({
          end
          
          for playerName, data in pairs(PlayerValues.ESPBoxes) do
-            if data.box and data.box.Parent then
-               data.box:Destroy()
-            end
-            if data.nameLabel and data.nameLabel.Parent then
-               data.nameLabel:Destroy()
+            if data.billboard and data.billboard.Parent then
+               data.billboard:Destroy()
             end
             if data.connection then
                data.connection:Disconnect()
@@ -269,7 +337,7 @@ PluginTab:CreateToggle({
          
          Rayfield:Notify({
             Title = "透視玩家已關閉",
-            Content = "玩家外框已移除",
+            Content = "玩家標籤已移除",
             Duration = 2,
             Image = 4483362458
          })
@@ -277,8 +345,8 @@ PluginTab:CreateToggle({
    end
 })
 
--- 創建ESP函數
-function CreateESP(player, values)
+-- 創建 Billboard GUI ESP
+function CreateBillboardESP(player, values)
    if not player.Character then return end
    
    local character = player.Character
@@ -286,81 +354,74 @@ function CreateESP(player, values)
    
    if not humanoidRootPart then return end
    
-   -- 創建外框 (Box)
-   local box = Instance.new("Part")
-   box.Name = "ESPBox_" .. player.Name
-   box.Shape = Enum.PartType.Block
-   box.Material = Enum.Material.Neon
-   box.Color = Color3.fromRGB(0, 255, 0)
-   box.CanCollide = false
-   box.CFrame = humanoidRootPart.CFrame
-   box.Transparency = 0.5
-   box.TopSurface = Enum.SurfaceType.Smooth
-   box.BottomSurface = Enum.SurfaceType.Smooth
-   box.Size = Vector3.new(3, 5, 3)
-   box.Parent = workspace
+   -- 創建 Billboard GUI
+   local billboard = Instance.new("BillboardGui")
+   billboard.Name = "ESPBillboard_" .. player.Name
+   billboard.Size = UDim2.new(4, 0, 2, 0)
+   billboard.MaxDistance = math.huge
+   billboard.Adornee = humanoidRootPart
+   billboard.Parent = humanoidRootPart
    
-   -- 穿透牆壁設置
-   local boxSurface = Instance.new("SurfaceGui")
-   boxSurface.Parent = box
-   boxSurface.Face = Enum.NormalId.Front
+   -- 創建背景框
+   local frame = Instance.new("Frame")
+   frame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+   frame.BackgroundTransparency = 0.5
+   frame.BorderSizePixel = 2
+   frame.BorderColor3 = Color3.fromRGB(0, 255, 0)
+   frame.Size = UDim2.new(1, 0, 1, 0)
+   frame.Parent = billboard
    
    -- 創建玩家名稱標籤
-   local nameLabel = Instance.new("Part")
-   nameLabel.Name = "ESPLabel_" .. player.Name
-   nameLabel.Shape = Enum.PartType.Block
-   nameLabel.Material = Enum.Material.Neon
-   nameLabel.Color = Color3.fromRGB(0, 255, 0)
-   nameLabel.CanCollide = false
-   nameLabel.Transparency = 0.3
-   nameLabel.TopSurface = Enum.SurfaceType.Smooth
-   nameLabel.BottomSurface = Enum.SurfaceType.Smooth
-   nameLabel.Size = Vector3.new(0.1, 0.1, 0.1)
-   nameLabel.Parent = workspace
+   local nameLabel = Instance.new("TextLabel")
+   nameLabel.Name = "PlayerName"
+   nameLabel.BackgroundTransparency = 1
+   nameLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+   nameLabel.TextSize = 18
+   nameLabel.Font = Enum.Font.GothamBold
+   nameLabel.Text = player.Name
+   nameLabel.TextScaled = true
+   nameLabel.Size = UDim2.new(1, 0, 0.5, 0)
+   nameLabel.Position = UDim2.new(0, 0, 0, 0)
+   nameLabel.Parent = frame
    
-   -- 在名稱標籤上添加文本
-   local textLabel = Instance.new("TextLabel")
-   textLabel.Name = "NameText"
-   textLabel.BackgroundTransparency = 1
-   textLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
-   textLabel.TextSize = 24
-   textLabel.Font = Enum.Font.GothamBold
-   textLabel.Text = player.Name
-   textLabel.TextScaled = true
-   textLabel.Parent = nameLabel
-   
-   local billboardGui = Instance.new("BillboardGui")
-   billboardGui.Size = UDim2.new(4, 0, 2, 0)
-   billboardGui.MaxDistance = math.huge
-   billboardGui.Parent = nameLabel
-   
-   textLabel.Parent = billboardGui
+   -- 創建距離標籤
+   local distanceLabel = Instance.new("TextLabel")
+   distanceLabel.Name = "Distance"
+   distanceLabel.BackgroundTransparency = 1
+   distanceLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+   distanceLabel.TextSize = 14
+   distanceLabel.Font = Enum.Font.Gotham
+   distanceLabel.Text = "距離: 0m"
+   distanceLabel.TextScaled = true
+   distanceLabel.Size = UDim2.new(1, 0, 0.5, 0)
+   distanceLabel.Position = UDim2.new(0, 0, 0.5, 0)
+   distanceLabel.Parent = frame
    
    -- 保存參考
    if not values.ESPBoxes[player.Name] then
       values.ESPBoxes[player.Name] = {}
    end
-   values.ESPBoxes[player.Name].box = box
-   values.ESPBoxes[player.Name].nameLabel = nameLabel
+   values.ESPBoxes[player.Name].billboard = billboard
+   values.ESPBoxes[player.Name].distanceLabel = distanceLabel
    
-   -- 持續更新位置
+   -- 持續更新距離
    local connection
    connection = game:GetService("RunService").RenderStepped:Connect(function()
       if not values.ESP or not player.Parent or not character.Parent then
-         if box and box.Parent then
-            box:Destroy()
-         end
-         if nameLabel and nameLabel.Parent then
-            nameLabel:Destroy()
+         if billboard and billboard.Parent then
+            billboard:Destroy()
          end
          connection:Disconnect()
          values.ESPBoxes[player.Name] = nil
          return
       end
       
-      if humanoidRootPart and box then
-         box.CFrame = humanoidRootPart.CFrame
-         nameLabel.Position = humanoidRootPart.Position + Vector3.new(0, 3, 0)
+      if humanoidRootPart and distanceLabel then
+         local playerPos = game.Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+         if playerPos then
+            local distance = (humanoidRootPart.Position - playerPos.Position).Magnitude
+            distanceLabel.Text = string.format("距離: %.1fm", distance)
+         end
       end
    end)
    

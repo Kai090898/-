@@ -14,14 +14,20 @@ local Window = Rayfield:CreateWindow({
 
 -- 創建分類
 local ModifierTab = Window:CreateTab("更改器", 0)
+local PluginTab = Window:CreateTab("常用外掛", 1)
 
 -- 預設數值
 local PlayerValues = {
    JumpPower = 50,
    WalkSpeed = 16,
    Gravity = 196.2,
-   Noclip = false
+   Noclip = false,
+   Flying = false,
+   FlySpeed = 50,
+   ESP = false
 }
+
+-- ========== 更改器分類 ==========
 
 -- 跳躍力輸入框
 ModifierTab:CreateInput({
@@ -160,6 +166,165 @@ ModifierTab:CreateToggle({
    end
 })
 
+-- ========== 常用外掛分類 ==========
+
+-- 飛行速度輸入框
+PluginTab:CreateInput({
+   Name = "飛行速度",
+   PlaceholderText = "輸入飛行速度數值",
+   RemoveTextAfterFocusLost = false,
+   Callback = function(Text)
+      local flySpeedValue = tonumber(Text)
+      if flySpeedValue then
+         PlayerValues.FlySpeed = flySpeedValue
+         Rayfield:Notify({
+            Title = "飛行速度已更改",
+            Content = "飛行速度已設置為: " .. flySpeedValue,
+            Duration = 2,
+            Image = 4483362458
+         })
+      else
+         Rayfield:Notify({
+            Title = "錯誤",
+            Content = "請輸入有效的數字",
+            Duration = 2,
+            Image = 4483362458
+         })
+      end
+   end
+})
+
+-- 飛行開關
+PluginTab:CreateToggle({
+   Name = "飛行",
+   CurrentValue = false,
+   Flag = "Flying",
+   Callback = function(Value)
+      PlayerValues.Flying = Value
+      
+      if Value then
+         -- 開啟飛行
+         local player = game.Players.LocalPlayer
+         local character = player.Character
+         local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+         
+         if humanoidRootPart then
+            local bodyVelocity = Instance.new("BodyVelocity")
+            bodyVelocity.Velocity = Vector3.new(0, 0, 0)
+            bodyVelocity.Parent = humanoidRootPart
+            bodyVelocity.Name = "FlyVelocity"
+            
+            local connection
+            connection = game:GetService("RunService").RenderStepped:Connect(function()
+               if not PlayerValues.Flying then
+                  bodyVelocity:Destroy()
+                  connection:Disconnect()
+                  return
+               end
+               
+               local camera = workspace.CurrentCamera
+               local moveDirection = Vector3.new(0, 0, 0)
+               
+               if game:GetService("UserInputService"):IsKeyDown(Enum.KeyCode.W) then
+                  moveDirection = moveDirection + (camera.CFrame.LookVector * PlayerValues.FlySpeed)
+               end
+               if game:GetService("UserInputService"):IsKeyDown(Enum.KeyCode.S) then
+                  moveDirection = moveDirection - (camera.CFrame.LookVector * PlayerValues.FlySpeed)
+               end
+               if game:GetService("UserInputService"):IsKeyDown(Enum.KeyCode.A) then
+                  moveDirection = moveDirection - (camera.CFrame.RightVector * PlayerValues.FlySpeed)
+               end
+               if game:GetService("UserInputService"):IsKeyDown(Enum.KeyCode.D) then
+                  moveDirection = moveDirection + (camera.CFrame.RightVector * PlayerValues.FlySpeed)
+               end
+               
+               bodyVelocity.Velocity = moveDirection
+            end)
+         end
+         
+         Rayfield:Notify({
+            Title = "飛行已開啟",
+            Content = "使用 WASD 控制飛行方向",
+            Duration = 2,
+            Image = 4483362458
+         })
+      else
+         -- 關閉飛行
+         local character = game.Players.LocalPlayer.Character
+         local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+         
+         if humanoidRootPart then
+            local flyVelocity = humanoidRootPart:FindFirstChild("FlyVelocity")
+            if flyVelocity then
+               flyVelocity:Destroy()
+            end
+         end
+         
+         Rayfield:Notify({
+            Title = "飛行已關閉",
+            Content = "飛行已停止",
+            Duration = 2,
+            Image = 4483362458
+         })
+      end
+   end
+})
+
+-- 透視玩家開關
+PluginTab:CreateToggle({
+   Name = "透視玩家",
+   CurrentValue = false,
+   Flag = "ESP",
+   Callback = function(Value)
+      PlayerValues.ESP = Value
+      
+      if Value then
+         -- 開啟透視
+         local players = game:GetService("Players"):GetPlayers()
+         
+         for _, player in pairs(players) do
+            if player ~= game.Players.LocalPlayer and player.Character then
+               local character = player.Character
+               for _, part in pairs(character:GetDescendants()) do
+                  if part:IsA("BasePart") then
+                     part.CanCollide = false
+                     part.Transparency = 0.3
+                  end
+               end
+            end
+         end
+         
+         Rayfield:Notify({
+            Title = "透視玩家已開啟",
+            Content = "其他玩家現在是半透明的",
+            Duration = 2,
+            Image = 4483362458
+         })
+      else
+         -- 關閉透視
+         local players = game:GetService("Players"):GetPlayers()
+         
+         for _, player in pairs(players) do
+            if player ~= game.Players.LocalPlayer and player.Character then
+               local character = player.Character
+               for _, part in pairs(character:GetDescendants()) do
+                  if part:IsA("BasePart") then
+                     part.Transparency = 0
+                  end
+               end
+            end
+         end
+         
+         Rayfield:Notify({
+            Title = "透視玩家已關閉",
+            Content = "玩家恢復正常顯示",
+            Duration = 2,
+            Image = 4483362458
+         })
+      end
+   end
+})
+
 -- 重置按鈕
 ModifierTab:CreateButton({
    Name = "重置所有數值",
@@ -168,6 +333,9 @@ ModifierTab:CreateButton({
       PlayerValues.WalkSpeed = 16
       PlayerValues.Gravity = 196.2
       PlayerValues.Noclip = false
+      PlayerValues.Flying = false
+      PlayerValues.FlySpeed = 50
+      PlayerValues.ESP = false
       
       local humanoid = game.Players.LocalPlayer.Character:FindFirstChild("Humanoid")
       if humanoid then
@@ -182,6 +350,7 @@ ModifierTab:CreateButton({
          for _, part in pairs(character:GetDescendants()) do
             if part:IsA("BasePart") then
                part.CanCollide = true
+               part.Transparency = 0
             end
          end
       end
